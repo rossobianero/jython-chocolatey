@@ -15,13 +15,13 @@ $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 #$fileLocation = '\\SHARE_LOCATION\to\INSTALLER_FILE'
 # Community Repo: Use official urls for non-redist binaries or redist where total package size is over 200MB
 # Internal/Organization: Download from internal location (internet sources are unreliable)
-$url        = '' # download url, HTTPS preferred
+$url        = "https://repo1.maven.org/maven2/org/python/jython-installer/$env:chocolateyPackageVersion/jython-installer-$env:chocolateyPackageVersion.jar" # download url, HTTPS preferred
 $url64      = '' # 64bit URL here (HTTPS preferred) or remove - if installer contains both (very rare), use $url
 
 $packageArgs = @{
   packageName   = $env:ChocolateyPackageName
   unzipLocation = $toolsDir
-  fileType      = 'EXE_MSI_OR_MSU' #only one of these: exe, msi, msu
+  fileType      = 'EXE' #only one of these: exe, msi, msu
   url           = $url
   url64bit      = $url64
   #file         = $fileLocation
@@ -32,14 +32,14 @@ $packageArgs = @{
   # To determine checksums, you can get that from the original site if provided.
   # You can also use checksum.exe (choco install checksum) and use it
   # e.g. checksum -t sha256 -f path\to\file
-  checksum      = ''
-  checksumType  = 'sha256' #default is md5, can also be sha1, sha256 or sha512
+  checksum      = '97bb0ce281ce49568a90ff26e8f9bc23'
+  checksumType  = 'md5' #default is md5, can also be sha1, sha256 or sha512
   checksum64    = ''
-  checksumType64= 'sha256' #default is checksumType
+  checksumType64= '' #default is checksumType
 
   # MSI
-  silentArgs    = "/qn /norestart /l*v `"$($env:TEMP)\$($packageName).$($env:chocolateyPackageVersion).MsiInstall.log`"" # ALLUSERS=1 DISABLEDESKTOPSHORTCUT=1 ADDDESKTOPICON=0 ADDSTARTMENU=0
-  validExitCodes= @(0, 3010, 1641)
+  #silentArgs    = "/qn /norestart /l*v `"$($env:TEMP)\$($packageName).$($env:chocolateyPackageVersion).MsiInstall.log`"" # ALLUSERS=1 DISABLEDESKTOPSHORTCUT=1 ADDDESKTOPICON=0 ADDSTARTMENU=0
+  #validExitCodes= @(0, 3010, 1641)
   # OTHERS
   # Uncomment matching EXE type (sorted by most to least common)
   #silentArgs   = '/S'           # NSIS
@@ -53,10 +53,16 @@ $packageArgs = @{
   # Note that some installers, in addition to the silentArgs above, may also need assistance of AHK to achieve silence.
   #silentArgs   = ''             # none; make silent with input macro script like AutoHotKey (AHK)
                                  #       https://community.chocolatey.org/packages/autohotkey.portable
-  #validExitCodes= @(0) #please insert other valid exit codes here
+  validExitCodes= @(0) #please insert other valid exit codes here
 }
 
-Install-ChocolateyPackage @packageArgs # https://docs.chocolatey.org/en-us/create/functions/install-chocolateypackage
+$javaCommand = $(Get-Command "java" -ErrorAction SilentlyContinue)
+if($null -eq $javaCommand) {
+  Write-Error "This installer requires java, and it was not found in the path."
+  exit(255);
+}
+
+# Install-ChocolateyPackage @packageArgs # https://docs.chocolatey.org/en-us/create/functions/install-chocolateypackage
 #Install-ChocolateyZipPackage @packageArgs # https://docs.chocolatey.org/en-us/create/functions/install-chocolateyzippackage
 ## If you are making your own internal packages (organizations), you can embed the installer or
 ## put on internal file share and use the following instead (you'll need to add $file to the above)
@@ -83,7 +89,7 @@ Install-ChocolateyPackage @packageArgs # https://docs.chocolatey.org/en-us/creat
 ## downloader that the main helpers use to download items
 ## if removing $url64, please remove from here
 ## - https://docs.chocolatey.org/en-us/create/functions/get-chocolateywebfile
-#Get-ChocolateyWebFile $packageName 'DOWNLOAD_TO_FILE_FULL_PATH' $url $url64
+Get-ChocolateyWebFile $packageName "$toolsDir\jython-installer-$env:chocolateyPackageVersion.jar" $url #$url64
 
 ## Installer, will assert administrative rights - used by Install-ChocolateyPackage
 ## use this for embedding installers in the package when not going to community feed or when you have distribution rights
@@ -96,8 +102,18 @@ Install-ChocolateyPackage @packageArgs # https://docs.chocolatey.org/en-us/creat
 
 ## Runs processes asserting UAC, will assert administrative rights - used by Install-ChocolateyInstallPackage
 ## - https://docs.chocolatey.org/en-us/create/functions/start-chocolateyprocessasadmin
-#Start-ChocolateyProcessAsAdmin 'STATEMENTS_TO_RUN' 'Optional_Application_If_Not_PowerShell' -validExitCodes $validExitCodes
+# Start-ChocolateyProcessAsAdmin "java -jar $env:TEMP\jython\$env:chocolateyPackageVersion\jython-installer-$env:chocolateyPackageVersion.jar --console"  -validExitCodes $validExitCodes
 
+try {
+  Push-Location $toolsDir
+  java -jar $toolsDir\jython-installer-$env:chocolateyPackageVersion.jar 
+  echo $LASTEXITCODE
+}
+finally {
+  Pop-Location
+}
+
+# Remove-Item -Force $env:TEMP\jython\jython-installer-$env:chocolateyPackageVersion.jar
 ## To avoid quoting issues, you can also assemble your -Statements in another variable and pass it in
 #$appPath = "$env:ProgramFiles\appname"
 ##Will resolve to C:\Program Files\appname
